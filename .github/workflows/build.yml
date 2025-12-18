@@ -5,54 +5,56 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 拉取代码 (含子模块)
+      # --- 这里是“前几步”的核心：清理空间 ---
+      - name: 1. 深度清理硬盘空间
+        run: |
+          echo "清理前空间状态："
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-28
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-29
+          sudo rm -rf /usr/local/share/boost
+          sudo docker image prune -a -f
+          echo "清理后空间状态："
+          df -h
+
+      - name: 2. 拉取代码
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      - name: 2. 深度安装 NDK 23.2 (修复 CXX1101)
+      - name: 3. 安装 NDK 23.2
         run: |
-          # 增加 --sdk_root 确保安装到标准位置
-          yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "ndk;23.2.8568313" --sdk_root=/usr/local/lib/android/sdk
+          # 先删掉默认自带的旧版 NDK 腾空间
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/*
+          yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "ndk;23.2.8568313"
 
-      - name: 3. 配置 Java 21 环境
+      - name: 4. 设置 Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '21'
-          cache: 'gradle'
 
-      - name: 4. 植入 API 密钥与路径
+      - name: 5. 写入 API 密钥
         run: |
           echo "telegram.api_id=39843586" > local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          # 明确注入 NDK 绝对路径
           echo "ndk.dir=/usr/local/lib/android/sdk/ndk/23.2.8568313" >> local.properties
 
-      - name: 5. 执行核心编译 (跳过非必要任务)
+      - name: 6. 开始编译 (单线程抗压模式)
         run: |
           chmod +x gradlew
-          # --continue 确保即使有次要报错也继续生成 APK
-          ./gradlew :app:assembleDebug --no-daemon \
-            --continue \
-            -Dorg.gradle.workers.max=1 \
-            -x test -x lint -x check
+          ./gradlew :app:assembleDebug --no-daemon -Dorg.gradle.workers.max=1 -x test -x lint
 
-      - name: 6. 暴力搜寻并搬运 APK
+      - name: 7. 提取并上传 APK
         if: always()
         run: |
-          mkdir -p final_output
-          # 打印搜索过程，方便我们在日志里查岗
-          echo "正在全盘搜索生成的 APK 文件..."
-          find . -name "*.apk" -ls
-          # 搬运所有找到的 APK
-          find . -name "*.apk" -exec cp {} ./final_output/ \;
-
-      - name: 7. 上传至 GitHub Artifacts (供你下载)
+          mkdir -p output
+          find . -name "*.apk" -exec cp {} ./output/ \;
+        
+      - name: 8. 发布成品
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Telegram_X_Custom_Build
-          path: final_output/
-          retention-days: 7
+          name: TGX_Final_Fixed_APK
+          path: output/
