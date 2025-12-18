@@ -1,47 +1,41 @@
-name: Expert Final Success
+name: Expert_Final_Diagnosis
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 拉取代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: 2. 深度环境重置
-        run: |
-          # 强制删除所有干扰文件，防止 48 秒闪退
-          rm -f local.properties gradle.properties
-          # 强制还原 Java 源码，清除之前手动修改的所有错误
-          git checkout HEAD -- *.java || true
-
-      - name: 3. 安装 Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: 'temurin'
+          java-version: '17'
 
-      - name: 4. 工业级环境注入
+      - name: 注入配置并强制编译
         run: |
-          # 1. 安装 NDK
-          SDK_MANAGER=$(find ${ANDROID_SDK_ROOT} -name sdkmanager | head -n 1)
-          echo "y" | $SDK_MANAGER --install "ndk;25.2.9519653"
+          # 1. 注入 API
+          echo "api_id=39843586" > local.properties
+          echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 2. 精准写入配置，不留任何空格或特殊字符
-          printf "api_id=39843586\napi_hash=6566d860f3317765664161c9e88b901a\nndk.dir=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" > local.properties
-          
-          # 3. 内存与兼容性硬化
-          printf "org.gradle.jvmargs=-Xmx4096m\nandroid.useAndroidX=true\nandroid.enableJetifier=true" > gradle.properties
+          # 2. 安装 NDK 并指定路径
+          SDK_MGR=$(find ${ANDROID_SDK_ROOT} -name sdkmanager | head -n 1)
+          echo "y" | $SDK_MGR --install "ndk;25.2.9519653"
+          echo "ndk.dir=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> local.properties
 
-      - name: 5. 最终编译交付
-        run: |
+          # 3. 执行编译，并把错误日志重定向到文件
           chmod +x gradlew
-          # 使用 --stacktrace 捕捉底层错误，--no-daemon 确保不产生日志中提到的 Daemon 冲突
-          ./gradlew clean assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon > build_log.txt 2>&1 || true
+          
+          # 4. 【核心】自动提取那 518 行前后的报错信息
+          echo "========= 错误原因自动提取 ========="
+          grep -C 10 "error:" build_log.txt || tail -n 100 build_log.txt
+          echo "===================================="
 
-      - name: 6. 提取成品
+      - name: 如果成功则上传
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: PG助手-正式版
+          name: PG助手-成品
           path: "**/build/outputs/apk/debug/*.apk"
