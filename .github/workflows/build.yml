@@ -1,4 +1,4 @@
-name: Final_Strike
+name: Java21_Final_Strike
 on: [push, workflow_dispatch]
 
 jobs:
@@ -9,28 +9,27 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Java 17
+      - name: 升级至 Java 21 (匹配项目需求)
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21' # 物理升级，解决版本冲突
+          cache: 'gradle'
 
-      - name: 注入 API 并物理清理环境
+      - name: 注入 API 并清理
         run: |
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          # 强制指定 8.7 版本，不再依赖 sed，直接覆盖
+          # 确保 Gradle 版本与 Java 21 兼容
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip" > gradle/wrapper/gradle-wrapper.properties
-          # 清理可能导致报错的旧配置
-          rm -rf .gradle
 
-      - name: 极限构建 (跳过所有检查)
+      - name: 构建 APK
         run: |
           chmod +x gradlew
-          # 使用 -x lint 和 -x test 跳过所有无关步骤，直奔 APK
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test -x check
+          # 强制跳过 lint 和测试，直接产出
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test
 
-      - name: 暴力提取
+      - name: 提取成果
         if: always()
         run: |
           mkdir -p output
@@ -40,5 +39,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Ad_Machine_Final
+          name: Ad_Machine_Java21
           path: output/
