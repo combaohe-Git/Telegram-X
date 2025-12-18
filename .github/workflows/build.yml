@@ -1,4 +1,4 @@
-name: Victory_At_All_Costs
+name: Force_Wipe_Hardcoded_Path
 on: [push, workflow_dispatch]
 
 jobs:
@@ -15,43 +15,42 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: 源码级暴力修正
+      - name: 物理擦除硬编码 NDK 设置
         run: |
+          # 1. 注入 API 凭证
           echo "telegram.api_id=39843586" > local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 自动寻找并替换 NDK 版本
-          REAL_NDK_VER=$(ls /usr/local/lib/android/sdk/ndk/ | head -n 1)
-          find . -type f \( -name "*.gradle*" -o -name "*.kts" -o -name "gradle.properties" \) -print0 | xargs -0 sed -i "s/23.2.8568313/$REAL_NDK_VER/g"
-          echo "ndk.dir=/usr/local/lib/android/sdk/ndk/$REAL_NDK_VER" >> local.properties
+          # 2. 探测服务器真实的 NDK 路径
+          REAL_NDK=$(ls -d /usr/local/lib/android/sdk/ndk/2* | head -n 1)
+          echo "ndk.dir=$REAL_NDK" >> local.properties
+          
+          # 3. 终极一击：在所有 build.gradle 文件中，强行删掉包含 ndkPath 的那一行代码
+          # 这样 Gradle 就会放弃去找 23.2.8568313，转而使用我们在 local.properties 提供的路径
+          find . -name "build.gradle*" -exec sed -i '/ndkPath/d' {} +
+          find . -name "build.gradle*" -exec sed -i '/ndkVersion/d' {} +
+          
+          echo "已物理删除所有硬编码 NDK 路径设置"
 
-      - name: 物理内存压榨优化
+      - name: 锁定 Gradle 8.13
         run: |
           mkdir -p gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
-          
-          mkdir -p ~/.gradle
-          # 限制并行任务数，防止 C++ 编译时内存爆炸导致出口代码 1
-          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=false" >> ~/.gradle/gradle.properties
-          echo "org.gradle.workers.max=2" >> ~/.gradle/gradle.properties
 
-      - name: 执行带日志的最终编译
+      - name: 执行单线程编译 (防内存崩溃)
         run: |
           chmod +x gradlew
-          # 增加 --info 模式，如果失败，我们可以看到具体的 C++ 报错行
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test --info
+          ./gradlew :app:assembleDebug --no-daemon -Dorg.gradle.workers.max=1 -Dorg.gradle.jvmargs="-Xmx6g" -x test -x lint
 
-      - name: 暴力提取成果
+      - name: 强制提取 APK
         if: always()
         run: |
           mkdir -p output
-          # 扩大搜索范围，确保能抓到生成的 APK
           find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付最终包
+      - name: 交付
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_COMPLETED_APK
+          name: TGX_FIXED_APK
           path: output/
