@@ -1,4 +1,4 @@
-name: Final_Success_Build
+name: Final_NDK_Breakthrough
 on: [push, workflow_dispatch]
 
 jobs:
@@ -16,39 +16,41 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: 物理注入 API 与 NDK 环境
+      - name: 自动定位 NDK 并注入凭证
         run: |
-          # 1. 注入 API 凭证（必须带 telegram. 前缀）
+          # 1. 注入 API 凭证
           echo "telegram.api_id=39843586" > local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 2. 核心修正：指定 GitHub Ubuntu 镜像中 NDK 的绝对路径
-          # 这将解决 [CXX1101] 找不到 NDK 的报错
-          echo "ndk.dir=/usr/local/lib/android/sdk/ndk-bundle" >> local.properties
-          
+          # 2. 自动探测 GitHub 环境中现有的 NDK 路径
+          # 我们不再手动指定版本号，而是让系统寻找安装在 /usr/local/lib/android/sdk/ndk/ 下的任何版本
+          NDK_PATH=
+          echo "ndk.dir=" >> local.properties
+          echo "检测到并使用的 NDK 路径: "
+
           # 3. 锁定 Gradle 8.13
           mkdir -p gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
           
-          # 4. 极限内存分配
+          # 4. 优化内存配置
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6g" >> ~/.gradle/gradle.properties
 
-      - name: 极限编译
+      - name: 执行最终构建
         run: |
           chmod +x gradlew
-          # -x lint -x test 确保跳过所有非编译性检查
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test
+          # 使用 --stacktrace 捕获可能出现的深层错误
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test --stacktrace
 
-      - name: 抓取 APK
+      - name: 收集 APK 成果
         if: always()
         run: |
           mkdir -p output
           find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付成品
+      - name: 交付安装包
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_FINAL_WORKER_APK
+          name: TGX_FINAL_APK
           path: output/
