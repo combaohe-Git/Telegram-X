@@ -1,4 +1,4 @@
-name: Final_NDK_Fix
+name: Final_Success_Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -16,36 +16,37 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: 物理注入 API 与 NDK 路径
+      - name: 物理注入 API 与 NDK 环境
         run: |
-          # 1. 注入 API 凭证
+          # 1. 注入 API 凭证（必须带 telegram. 前缀）
           echo "telegram.api_id=39843586" > local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 2. 关键：强行指定 GitHub 环境里一定有的 NDK 路径，不再让它报 CXX1101 错误
-          # GitHub Actions Ubuntu 22.04 默认路径
+          # 2. 核心修正：指定 GitHub Ubuntu 镜像中 NDK 的绝对路径
+          # 这将解决 [CXX1101] 找不到 NDK 的报错
           echo "ndk.dir=/usr/local/lib/android/sdk/ndk-bundle" >> local.properties
           
-          # 3. 锁定 Gradle 版本
+          # 3. 锁定 Gradle 8.13
           mkdir -p gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
           
+          # 4. 极限内存分配
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6g" >> ~/.gradle/gradle.properties
 
-      - name: 最终冲刺构建
+      - name: 极限编译
         run: |
           chmod +x gradlew
-          # 加上 -Pandroid.bundle.enableUncompressedNativeLibs=false 减少 C++ 报错
+          # -x lint -x test 确保跳过所有非编译性检查
           ./gradlew :app:assembleDebug --no-daemon -x lint -x test
 
-      - name: 提取成果
+      - name: 抓取 APK
         if: always()
         run: |
           mkdir -p output
           find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付最终包
+      - name: 交付成品
         if: always()
         uses: actions/upload-artifact@v4
         with:
