@@ -1,4 +1,4 @@
-name: Final_Absolute_Fix
+name: Victory_At_All_Costs
 on: [push, workflow_dispatch]
 
 jobs:
@@ -9,53 +9,49 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 环境物理对齐 (Java 21)
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '21'
-          cache: 'gradle'
 
-      - name: 暴力修复 NDK 路径与 API 凭证
+      - name: 源码级暴力修正
         run: |
-          # 1. 强力探测 NDK 真实路径
-          # 不再猜路径，直接在 GitHub 的 SDK 目录下搜索真正的 NDK 文件夹
-          REAL_NDK=$(find /usr/local/lib/android/sdk/ndk -maxdepth 1 -type d -name "2*" | head -n 1)
-          if [ -z "$REAL_NDK" ]; then REAL_NDK="/usr/local/lib/android/sdk/ndk-bundle"; fi
-          
-          # 2. 覆盖写入 local.properties (确保变量名和路径全对)
           echo "telegram.api_id=39843586" > local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          echo "ndk.dir=$REAL_NDK" >> local.properties
-          echo "android.ndkPath=$REAL_NDK" >> local.properties
           
-          echo "检查注入结果:"
-          cat local.properties
+          # 自动寻找并替换 NDK 版本
+          REAL_NDK_VER=$(ls /usr/local/lib/android/sdk/ndk/ | head -n 1)
+          find . -type f \( -name "*.gradle*" -o -name "*.kts" -o -name "gradle.properties" \) -print0 | xargs -0 sed -i "s/23.2.8568313/$REAL_NDK_VER/g"
+          echo "ndk.dir=/usr/local/lib/android/sdk/ndk/$REAL_NDK_VER" >> local.properties
 
-      - name: 修正 Gradle 引擎版本
+      - name: 物理内存压榨优化
         run: |
           mkdir -p gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
+          
           mkdir -p ~/.gradle
-          # 限制内存使用，防止 ForwardClientInput 阶段崩溃
-          echo "org.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
-          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
+          # 限制并行任务数，防止 C++ 编译时内存爆炸导致出口代码 1
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
+          echo "org.gradle.parallel=false" >> ~/.gradle/gradle.properties
+          echo "org.gradle.workers.max=2" >> ~/.gradle/gradle.properties
 
-      - name: 最终冲刺编译
+      - name: 执行带日志的最终编译
         run: |
           chmod +x gradlew
-          # 使用 --no-daemon 模式防止守护进程抢占内存
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test
+          # 增加 --info 模式，如果失败，我们可以看到具体的 C++ 报错行
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test --info
 
-      - name: 成果交付
+      - name: 暴力提取成果
         if: always()
         run: |
           mkdir -p output
+          # 扩大搜索范围，确保能抓到生成的 APK
           find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 下载 APK
+      - name: 交付最终包
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_FINAL_WORKER
+          name: TGX_COMPLETED_APK
           path: output/
