@@ -12,19 +12,15 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
-
-      - name: Install NDK (Official Way)
-        # 直接使用官方 SDK 工具，不依赖外部插件，确保路径正确
-        run: |
-          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "ndk;25.2.9519653"
-
-      - name: Grant permissions
-        run: chmod +x gradlew
 
       - name: Build APK
-        # 第 38 行：由于环境已就绪，这次将顺利通过
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          # 1. 自动接受协议并安装 NDK
+          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "ndk;25.2.9519653"
+          # 2. 赋予执行权限
+          chmod +x gradlew
+          # 3. 开始编译
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         if: success()
