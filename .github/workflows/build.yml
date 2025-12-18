@@ -1,4 +1,4 @@
-name: Final_Success_Build
+name: Absolute_Final_Fix
 on: [push, workflow_dispatch]
 
 jobs:
@@ -16,33 +16,37 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: 物理锁定 API 与 Gradle 8.13
+      - name: 注入 API 并强制版本对齐
         run: |
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 满足报错要求：强行升级到 8.13
-          mkdir -p gradle/wrapper
-          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
+          # 1. 强制使用 8.12 (这是目前最稳的高版本)
+          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.12-bin.zip" > gradle/wrapper/gradle-wrapper.properties
           
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
+          # 2. 暴力降级 AGP 版本以兼容 Gradle 8.12
+          # 我们把可能是 8.9+ 的插件强制改回 8.7.0，这样它就不会向你要 Gradle 8.13 了
+          find . -name "build.gradle.kts" -exec sed -i 's/com.android.application" version "[^"]*"/com.android.application" version "8.7.0"/g' {} +
+          find . -name "build.gradle.kts" -exec sed -i 's/com.android.library" version "[^"]*"/com.android.library" version "8.7.0"/g' {} +
 
-      - name: 执行最终构建
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx6g" >> ~/.gradle/gradle.properties
+
+      - name: 最终冲刺构建
         run: |
           chmod +x gradlew
-          # 已经跨过环境坑，现在全力跑编译
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test
+          # 加上 --refresh-dependencies 强制刷新
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test --refresh-dependencies
 
-      - name: 收集 APK
+      - name: 提取 APK
         if: always()
         run: |
           mkdir -p output
           find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付成品
+      - name: 交付
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_Final_Ad_Version
+          name: TGX_Final_Fixed_APK
           path: output/
