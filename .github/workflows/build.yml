@@ -1,4 +1,4 @@
-name: Final_Stability_Build
+name: Emergency_Fast_Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,33 +14,33 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: 生产力环境锁定
+      - name: 注入 API 并强行降级 Gradle
         run: |
-          # 写入你的 API 信息
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          # 给 Gradle 强行加内存，防止大项目编译崩溃
+          
+          # 关键点：把卡死的 9.2.0 强制换成稳定的 8.7
+          sed -i 's/gradle-9.2.0-bin.zip/gradle-8.7-bin.zip/g' gradle/wrapper/gradle-wrapper.properties || true
+          
           mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
 
-      - name: 编译 APK (仅构建手机端)
+      - name: 仅构建 App 模块
         run: |
           chmod +x gradlew
-          # 针对 KTS 脚本的精准构建命令
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew :app:assembleDebug --no-daemon
 
-      - name: 强制提取并扫描所有 APK
+      - name: 提取 APK
         if: always()
         run: |
-          mkdir -p final_artifacts
-          find . -name "*.apk" -not -path "*/build-cache/*" -exec cp {} ./final_artifacts/ \;
-          echo "扫描到的文件列表："
-          ls -R ./final_artifacts
+          mkdir -p final_apk
+          find . -name "*.apk" -exec cp {} ./final_apk/ \;
 
-      - name: 上传成果
+      - name: 交付成品
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PG_Helper_Final_Build
-          path: final_artifacts/
+          name: TGX_Emergency_APK
+          path: final_apk/
