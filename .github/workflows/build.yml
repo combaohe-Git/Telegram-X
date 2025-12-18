@@ -1,4 +1,4 @@
-name: Victory_Final_Action
+name: Final_NDK_Fix
 on: [push, workflow_dispatch]
 
 jobs:
@@ -16,33 +16,38 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: 物理注入正确凭证
+      - name: 物理注入 API 与 NDK 路径
         run: |
-          # 关键修正：源码要求必须带 telegram. 前缀
+          # 1. 注入 API 凭证
           echo "telegram.api_id=39843586" > local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
+          # 2. 关键：强行指定 GitHub 环境里一定有的 NDK 路径，不再让它报 CXX1101 错误
+          # GitHub Actions Ubuntu 22.04 默认路径
+          echo "ndk.dir=/usr/local/lib/android/sdk/ndk-bundle" >> local.properties
+          
+          # 3. 锁定 Gradle 版本
           mkdir -p gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
           
           mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx6g" >> ~/.gradle/gradle.properties
 
-      - name: 暴力编译
+      - name: 最终冲刺构建
         run: |
           chmod +x gradlew
-          # 跳过所有非核心检查，直奔 APK
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test -x check
+          # 加上 -Pandroid.bundle.enableUncompressedNativeLibs=false 减少 C++ 报错
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test
 
-      - name: 自动抓取并上传
+      - name: 提取成果
         if: always()
         run: |
-          mkdir -p final_apk
-          find . -name "*.apk" -exec cp {} ./final_apk/ \;
+          mkdir -p output
+          find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付投流工具包
+      - name: 交付最终包
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_FINAL_WORKER
-          path: final_apk/
+          name: TGX_FINAL_WORKER_APK
+          path: output/
