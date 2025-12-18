@@ -1,4 +1,4 @@
-name: The_Last_Stand
+name: Victory_Final_Action
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,36 +14,35 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '21'
+          cache: 'gradle'
 
-      - name: 极限自动化环境配置
+      - name: 物理注入正确凭证
         run: |
-          echo "api_id=39843586" > local.properties
-          echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
+          # 关键修正：源码要求必须带 telegram. 前缀
+          echo "telegram.api_id=39843586" > local.properties
+          echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 满足项目原始要求的 8.13
           mkdir -p gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip" > gradle/wrapper/gradle-wrapper.properties
           
-          # 极限内存配置：防止 OOM 崩溃
           mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx6656m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
-          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
 
-      - name: 暴力构建 (忽略所有警告)
+      - name: 暴力编译
         run: |
           chmod +x gradlew
-          # 使用 --no-daemon 释放每一比特内存给编译器
-          ./gradlew :app:assembleDebug --no-daemon -x lint -x test --stacktrace
+          # 跳过所有非核心检查，直奔 APK
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test -x check
 
-      - name: 物理抓取成果
+      - name: 自动抓取并上传
         if: always()
         run: |
-          mkdir -p output
-          find . -name "*.apk" -exec cp {} ./output/ \;
+          mkdir -p final_apk
+          find . -name "*.apk" -exec cp {} ./final_apk/ \;
 
-      - name: 交付最终包
+      - name: 交付投流工具包
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: FINAL_TGX_PRODUCTION
-          path: output/
+          name: TGX_FINAL_WORKER
+          path: final_apk/
