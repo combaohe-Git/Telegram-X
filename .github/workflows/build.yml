@@ -8,36 +8,40 @@ jobs:
       - name: 1. 拉取代码
         uses: actions/checkout@v4
 
-      - name: 2. 配置 Java 17
+      - name: 2. 深度环境重置
+        run: |
+          # 强制删除所有干扰文件，防止 48 秒闪退
+          rm -f local.properties gradle.properties
+          # 强制还原 Java 源码，清除之前手动修改的所有错误
+          git checkout HEAD -- *.java || true
+
+      - name: 3. 安装 Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      - name: 3. 环境加固与 NDK 安装
+      - name: 4. 工业级环境注入
         run: |
-          # 动态安装 NDK
-          export SDK_MGR=$(find ${ANDROID_SDK_ROOT:-} -name sdkmanager | head -n 1)
-          echo "y" | $SDK_MGR --install "ndk;25.2.9519653"
+          # 1. 安装 NDK
+          SDK_MANAGER=$(find ${ANDROID_SDK_ROOT} -name sdkmanager | head -n 1)
+          echo "y" | $SDK_MANAGER --install "ndk;25.2.9519653"
           
-          # 核心修复：手动指定 ndk.dir 和 API 参数，不依赖环境变量
-          NDK_PATH="${ANDROID_SDK_ROOT}/ndk/25.2.9519653"
-          echo "ndk.dir=$NDK_PATH" > local.properties
-          echo "api_id=39843586" >> local.properties
-          echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
+          # 2. 精准写入配置，不留任何空格或特殊字符
+          printf "api_id=39843586\napi_hash=6566d860f3317765664161c9e88b901a\nndk.dir=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" > local.properties
           
-          # 增加内存上限，防止 OOM
-          echo "org.gradle.jvmargs=-Xmx4096m" > gradle.properties
+          # 3. 内存与兼容性硬化
+          printf "org.gradle.jvmargs=-Xmx4096m\nandroid.useAndroidX=true\nandroid.enableJetifier=true" > gradle.properties
 
-      - name: 4. 执行编译
+      - name: 5. 最终编译交付
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          # 使用 --stacktrace 捕捉底层错误，--no-daemon 确保不产生日志中提到的 Daemon 冲突
+          ./gradlew clean assembleDebug --no-daemon --stacktrace
 
-      - name: 5. 上传成品 (V4)
+      - name: 6. 提取成品
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: PG助手-正式成品
+          name: PG助手-正式版
           path: "**/build/outputs/apk/debug/*.apk"
