@@ -1,4 +1,4 @@
-name: Final_War_For_APK
+name: Final_Stability_Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -9,38 +9,38 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Java 17
+      - name: 设置 Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
 
-      - name: 注入生产力 API
+      - name: 生产力环境锁定
         run: |
+          # 写入你的 API 信息
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
+          # 给 Gradle 强行加内存，防止大项目编译崩溃
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
 
-      - name: 强力编译 (含全部变体)
+      - name: 编译 APK (仅构建手机端)
         run: |
           chmod +x gradlew
-          # 不只编 Debug，全量编译，防止它漏掉任何生成的可能
-          ./gradlew assemble --no-daemon
+          # 针对 KTS 脚本的精准构建命令
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      - name: 【死亡监控】全盘扫描并物理移动
+      - name: 强制提取并扫描所有 APK
         if: always()
         run: |
-          mkdir -p collect_all_apks
-          echo "========= 正在全盘搜索所有 APK ========="
-          # 这一步会列出所有 apk 的位置
-          find . -name "*.apk" -type f
-          # 这一步把它们全部暴力拷贝出来
-          find . -name "*.apk" -type f -exec cp {} ./collect_all_apks/ \;
-          echo "========= 收集完毕 ========="
-          ls -R ./collect_all_apks/
+          mkdir -p final_artifacts
+          find . -name "*.apk" -not -path "*/build-cache/*" -exec cp {} ./final_artifacts/ \;
+          echo "扫描到的文件列表："
+          ls -R ./final_artifacts
 
-      - name: 交付最终成果
+      - name: 上传成果
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PG_Final_Weapon
-          path: collect_all_apks/
+          name: PG_Helper_Final_Build
+          path: final_artifacts/
