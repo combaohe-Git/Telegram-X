@@ -1,4 +1,4 @@
-name: Force_APK_Export
+name: Final_War_For_APK
 on: [push, workflow_dispatch]
 
 jobs:
@@ -15,30 +15,32 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 环境与API注入
+      - name: 注入生产力 API
         run: |
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          export JAVA_HOME=$JAVA_HOME_17_X64
-          export PATH=$JAVA_HOME/bin:$PATH
 
-      - name: 暴力编译
+      - name: 强力编译 (含全部变体)
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          # 不只编 Debug，全量编译，防止它漏掉任何生成的可能
+          ./gradlew assemble --no-daemon
 
-      - name: 【核心】掘地三尺找 APK
+      - name: 【死亡监控】全盘扫描并物理移动
+        if: always()
         run: |
-          mkdir -p final_out
-          echo "开始全盘搜索 APK 文件..."
-          # 寻找所有生成的 apk，并排除掉那些没用的中间临时文件
-          find . -name "*.apk" -not -path "*/build-cache/*" -exec cp {} ./final_out/ \;
-          echo "搜索完成，当前找到的文件有："
-          ls -R ./final_out
+          mkdir -p collect_all_apks
+          echo "========= 正在全盘搜索所有 APK ========="
+          # 这一步会列出所有 apk 的位置
+          find . -name "*.apk" -type f
+          # 这一步把它们全部暴力拷贝出来
+          find . -name "*.apk" -type f -exec cp {} ./collect_all_apks/ \;
+          echo "========= 收集完毕 ========="
+          ls -R ./collect_all_apks/
 
-      - name: 交付成品
+      - name: 交付最终成果
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PG-Helper-Actual-APK
-          path: final_out/*.apk
+          name: PG_Final_Weapon
+          path: collect_all_apks/
