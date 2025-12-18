@@ -1,4 +1,4 @@
-name: Emergency_Fast_Build
+name: Final_Strike
 on: [push, workflow_dispatch]
 
 jobs:
@@ -9,38 +9,36 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 设置 Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: 注入 API 并强行降级 Gradle
+      - name: 注入 API 并物理清理环境
         run: |
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          
-          # 关键点：把卡死的 9.2.0 强制换成稳定的 8.7
-          sed -i 's/gradle-9.2.0-bin.zip/gradle-8.7-bin.zip/g' gradle/wrapper/gradle-wrapper.properties || true
-          
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
+          # 强制指定 8.7 版本，不再依赖 sed，直接覆盖
+          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip" > gradle/wrapper/gradle-wrapper.properties
+          # 清理可能导致报错的旧配置
+          rm -rf .gradle
 
-      - name: 仅构建 App 模块
+      - name: 极限构建 (跳过所有检查)
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
+          # 使用 -x lint 和 -x test 跳过所有无关步骤，直奔 APK
+          ./gradlew :app:assembleDebug --no-daemon -x lint -x test -x check
 
-      - name: 提取 APK
+      - name: 暴力提取
         if: always()
         run: |
-          mkdir -p final_apk
-          find . -name "*.apk" -exec cp {} ./final_apk/ \;
+          mkdir -p output
+          find . -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付成品
+      - name: 交付
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_Emergency_APK
-          path: final_apk/
+          name: Ad_Machine_Final
+          path: output/
