@@ -1,37 +1,30 @@
-name: Final_Grafting_Build
+name: Precision_Grafting_Build
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 克隆官方最新版作为“干净的底座”
       - name: 克隆官方底座
         run: |
-          git clone --recursive https://github.com/TGX-Android/Telegram-X.git base_repo
+          # 加上 --depth 1 提速，因为我们只需要最新的环境
+          git clone --depth 1 --recursive https://github.com/TGX-Android/Telegram-X.git base_repo
 
-      # 2. 检出你自己的那个“修改版”仓库内容
       - name: 检出我的修改代码
         uses: actions/checkout@v4
         with:
           path: my_changes
 
-      # 3. 物理嫁接：把你修改过的代码覆盖到底座中
-      - name: 合并逻辑代码
+      - name: 定向嫁接逻辑 (不再全量覆盖)
         run: |
-          # 核心逻辑：将你修改过的 app 源码目录覆盖到底座仓库
-          # 这会保留底座仓库正确的 NDK 配置，但使用你的注册逻辑
-          if [ -d "my_changes/app/src" ]; then
-            cp -rv my_changes/app/src/* base_repo/app/src/
-            echo "代码嫁接成功"
-          else
-            echo "错误：在你的仓库中找不到 app/src 目录，请检查路径"
-            exit 1
-          fi
-          
-          # 4. 注入 API 凭证到新仓库
+          # 1. 注入 API 凭证
           echo "telegram.api_id=39843586" > base_repo/local.properties
           echo "telegram.api_hash=6566d860f3317765664161c9e88b901a" >> base_repo/local.properties
+          
+          # 2. 定向合并：只复制你修改过的 java/kotlin 源代码
+          # 我们不复制整个 src，避免弄坏底座的清单文件(Manifest)和配置
+          cp -rv my_changes/app/src/main/java/* base_repo/app/src/main/java/ 2>/dev/null || true
+          cp -rv my_changes/app/src/main/kotlin/* base_repo/app/src/main/kotlin/ 2>/dev/null || true
 
       - name: 设置 Java 21
         uses: actions/setup-java@v4
@@ -39,23 +32,22 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: 执行底座编译
+      - name: 执行带详细错误的编译
         run: |
           cd base_repo
-          # 授予权限
           chmod +x gradlew
-          # 使用底座自带的 Gradle 配置进行编译
-          ./gradlew :app:assembleDebug --no-daemon -x test -x lint
+          # 增加 --info，如果失败，我们要看看到底是哪行代码不兼容
+          ./gradlew :app:assembleDebug --no-daemon --info -x test -x lint
 
-      - name: 提取 APK 成品
+      - name: 提取成果
         if: always()
         run: |
           mkdir -p output
           find base_repo/ -name "*.apk" -exec cp {} ./output/ \;
 
-      - name: 交付安装包
+      - name: 交付成品
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TGX_MOD_REGISTER_VERSION
+          name: TGX_FIXED_VERSION
           path: output/
