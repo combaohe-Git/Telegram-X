@@ -15,22 +15,19 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 3. 专家级环境注入
+      - name: 3. 环境加固与 NDK 安装
         run: |
-          # 1. 动态安装 NDK
+          # 动态安装 NDK
           export SDK_MGR=$(find ${ANDROID_SDK_ROOT:-} -name sdkmanager | head -n 1)
           echo "y" | $SDK_MGR --install "ndk;25.2.9519653"
           
-          # 2. 获取 NDK 绝对路径并注入 local.properties
-          # 这是确保 Gradle 能找到 C++ 编译器的核心逻辑
+          # 核心修复：手动指定 ndk.dir 和 API 参数，不依赖环境变量
           NDK_PATH="${ANDROID_SDK_ROOT}/ndk/25.2.9519653"
           echo "ndk.dir=$NDK_PATH" > local.properties
-          
-          # 3. 直接注入 API 参数（确保万无一失）
           echo "api_id=39843586" >> local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
-          # 4. 优化 Gradle 内存（防止编译大项目时内存溢出）
+          # 增加内存上限，防止 OOM
           echo "org.gradle.jvmargs=-Xmx4096m" > gradle.properties
 
       - name: 4. 执行编译
