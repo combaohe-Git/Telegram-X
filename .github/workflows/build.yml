@@ -1,4 +1,4 @@
-name: Expert One-Shot Build
+name: Expert Final Success
 on: [push, workflow_dispatch]
 jobs:
   build:
@@ -6,38 +6,30 @@ jobs:
     steps:
       - name: 1. 拉取代码
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: 2. 还原源代码 (消除之前的修改错误)
-        # 强制将所有 Java 文件恢复到原始状态，避免手动修改引入的语法错误
-        run: git checkout HEAD -- *.java || true
-
-      - name: 3. 配置环境 (Java 17)
+      - name: 2. 配置环境
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: 4. 专家级编译环境准备
+      - name: 3. 自动化 NDK 配置与编译
         run: |
-          # 动态定位最新的工具路径
-          export SDK_MANAGER=$(find ${ANDROID_SDK_ROOT} -name sdkmanager | head -n 1)
-          echo "y" | $SDK_MANAGER --install "ndk;25.2.9519653"
+          # 动态获取 sdkmanager 位置
+          export SDK_MGR=$(find ${ANDROID_SDK_ROOT} -name sdkmanager | head -n 1)
+          echo "y" | $SDK_MGR --install "ndk;25.2.9519653"
           
-          # 关键：通过官方推荐的 local.properties 注入 API ID，不破坏源代码
+          # 写入 API 配置，确保 ID 被正确注入
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
           
           chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
-      - name: 5. 启动终极编译
-        # 使用 clean 确保不留任何缓存，--stacktrace 用于抓取万一出现的错误
-        run: ./gradlew clean assembleDebug --no-daemon --stacktrace
-
-      - name: 6. 上传最终成品
+      - name: 4. 上传成品 (必须使用 V4)
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: PG助手-正式成品
+          name: PG助手-最终成品
           path: "**/build/outputs/apk/debug/*.apk"
