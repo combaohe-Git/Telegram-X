@@ -1,4 +1,4 @@
-name: Production_Final_Fix
+name: Force_APK_Export
 on: [push, workflow_dispatch]
 
 jobs:
@@ -15,28 +15,30 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 生产力注入与环境强行修复
+      - name: 环境与API注入
         run: |
-          # 注入 API
           echo "api_id=39843586" > local.properties
           echo "api_hash=6566d860f3317765664161c9e88b901a" >> local.properties
-          
-          # 物理锁定 JAVA_HOME 路径 (GitHub Ubuntu Runner 默认路径)
-          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> $GITHUB_ENV
-          echo "PATH=${JAVA_HOME_17_X64}/bin:$PATH" >> $GITHUB_ENV
-
-      - name: 暴力执行构建
-        run: |
-          # 在执行前再次声明环境，双重保险
           export JAVA_HOME=$JAVA_HOME_17_X64
           export PATH=$JAVA_HOME/bin:$PATH
-          
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --info --stacktrace || true
 
-      - name: 全盘抓取 APK
+      - name: 暴力编译
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: 【核心】掘地三尺找 APK
+        run: |
+          mkdir -p final_out
+          echo "开始全盘搜索 APK 文件..."
+          # 寻找所有生成的 apk，并排除掉那些没用的中间临时文件
+          find . -name "*.apk" -not -path "*/build-cache/*" -exec cp {} ./final_out/ \;
+          echo "搜索完成，当前找到的文件有："
+          ls -R ./final_out
+
+      - name: 交付成品
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PG-Helper-Final
-          path: "**/*.apk"
+          name: PG-Helper-Actual-APK
+          path: final_out/*.apk
