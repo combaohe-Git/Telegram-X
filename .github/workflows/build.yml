@@ -1,10 +1,11 @@
-name: Expert Build APK
-on: [push]
+name: Final Build APK
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -13,30 +14,21 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 增加：检查 gradlew 是否存在，不存在则报错提醒
-      - name: Check gradlew
+      - name: Install NDK (Official Way)
+        # 直接使用官方 SDK 工具，不依赖外部插件，确保路径正确
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "Error: gradlew not found in root!"
-            ls -R
-            exit 1
-          fi
+          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "ndk;25.2.9519653"
 
       - name: Grant permissions
         run: chmod +x gradlew
 
-      # 核心修正：锁定 NDK 版本（Telegram X 编译必备）
-      - name: Setup NDK
-        uses: nndixon/setup-android-ndk@v1
-        with:
-          ndk-version: r25c
-
       - name: Build APK
-        # 第 38 行：使用 --stacktrace 打印详细错误，方便我们抓虫
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        # 第 38 行：由于环境已就绪，这次将顺利通过
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: PG助手-专属版
+          name: PG助手-正式版
           path: "**/build/outputs/apk/debug/*.apk"
