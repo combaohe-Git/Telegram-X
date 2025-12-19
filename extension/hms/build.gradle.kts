@@ -12,5 +12,3 @@ dependencies {
 android {
   namespace = "tgx.extension"
 }
-
-apply(plugin = "com.huawei.agconnect")
